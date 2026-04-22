@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Recon</title>
+  <style>
+    :root{
+      --bg:#f4f7fb; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#dbe2ea;
+      --brand:#0f766e; --brand-dark:#115e59; --accent:#0ea5e9; --radius:22px;
+      --shadow:0 18px 50px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(180deg,#edf6ff 0%,#f8fafc 30%,#f4f7fb 100%);color:var(--ink)}
+    .auth-shell,.app-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .auth-card,.app-card{width:100%;max-width:980px;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+    .head{padding:28px;background:linear-gradient(135deg,#0f766e 0%,#155e75 55%,#0ea5e9 100%);color:#fff}
+    .head h1{margin:0 0 8px;font-size:30px;letter-spacing:-.02em}
+    .head p{margin:0;color:rgba(255,255,255,.9);line-height:1.5}
+    .body{padding:26px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+    .card{padding:22px;border:1px solid var(--line);border-radius:22px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.04)}
+    .card h3{margin:0 0 8px;font-size:20px}
+    .card p{margin:0 0 16px;color:var(--muted);line-height:1.55}
+    .pill{display:inline-flex;padding:6px 10px;border-radius:999px;background:#ecfeff;color:#0c4a6e;font-size:12px;margin-bottom:12px}
+    a.btn,button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:14px;padding:12px 16px;font-weight:700;cursor:pointer;background:var(--brand);color:#fff;text-decoration:none}
+    a.btn:hover,button:hover{background:var(--brand-dark)}
+    button.secondary{background:#e2e8f0;color:#0f172a}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .note{margin-bottom:18px;padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid var(--line);font-size:13px;color:#334155}
+    .field{display:grid;gap:7px;margin-bottom:14px}
+    .field label{font-size:13px;font-weight:600;color:#334155}
+    .field input{width:100%;border:1px solid var(--line);border-radius:14px;padding:13px 14px;font-size:14px}
+    .err{display:none;margin-top:10px;padding:11px 12px;border-radius:12px;background:#fee2e2;color:#b91c1c;font-size:13px}
+    [hidden]{display:none !important}
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="auth-shell">
+    <div class="auth-card">
+      <div class="head">
+        <h1>Data Recon</h1>
+        <p>Sign in to access the reconciliation modules and export-ready outputs.</p>
+      </div>
+      <div class="body">
+        <div class="note">This app includes separate modules for <strong>Student Data Recon</strong> and <strong>Payment Recon</strong>.</div>
+        <form id="loginForm">
+          <div class="field">
+            <label for="usernameInput">Username</label>
+            <input id="usernameInput" type="text" autocomplete="username" required />
+          </div>
+          <div class="field">
+            <label for="passwordInput">Password</label>
+            <input id="passwordInput" type="password" autocomplete="current-password" required />
+          </div>
+          <div class="row">
+            <button type="submit">Login</button>
+          </div>
+          <div id="authError" class="err"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="appShell" class="app-shell" hidden>
+    <div class="app-card">
+      <div class="head">
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <h1>Data Recon</h1>
+            <p>Choose a module to continue. Session stays active on refresh in the same tab and ends after logout.</p>
+          </div>
+          <button id="logoutBtn" class="secondary" type="button">Logout</button>
+        </div>
+      </div>
+      <div class="body">
+        <div class="grid">
+          <div class="card">
+            <span class="pill">Module 1</span>
+            <h3>Student Data Recon</h3>
+            <p>LSQ, SF, and DEB reconciliation with dashboard, mapping views, mismatch exports, and workbook download.</p>
+            <a class="btn" href="data-recon.html">Open Data Recon</a>
+          </div>
+          <div class="card">
+            <span class="pill">Module 2</span>
+            <h3>Payment Recon</h3>
+            <p>Finance and SF payment comparison with amount match, scholarship vs outstanding match, difference analysis, and mapping export.</p>
+            <a class="btn" href="payment-recon.html">Open Payment Recon</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const AUTH_CONFIG = Object.freeze({ username:'admin', password:'Recon@123' });
+const AUTH_SESSION_KEY = 'data_recon_auth_session';
+
+function showApp(){ document.getElementById('loginScreen').hidden = true; document.getElementById('appShell').hidden = false; }
+function showLogin(){ document.getElementById('loginScreen').hidden = false; document.getElementById('appShell').hidden = true; document.getElementById('authError').style.display='none'; }
+function setErr(msg){ const el=document.getElementById('authError'); el.textContent=msg; el.style.display='block'; }
+
+document.getElementById('loginForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const u = document.getElementById('usernameInput').value.trim();
+  const p = document.getElementById('passwordInput').value.trim();
+  if (u === AUTH_CONFIG.username && p === AUTH_CONFIG.password){
+    sessionStorage.setItem(AUTH_SESSION_KEY,'1');
+    showApp();
+  } else {
+    setErr('Invalid username or password.');
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem(AUTH_SESSION_KEY);
+  window.location.reload();
+});
+
+if (sessionStorage.getItem(AUTH_SESSION_KEY) === '1') showApp(); else showLogin();
+</script>
+</body>
+</html>

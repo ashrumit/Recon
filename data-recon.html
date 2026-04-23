@@ -1,0 +1,1268 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Recon</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#f4f7fb; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#dbe2ea;
+      --brand:#0f766e; --brand-dark:#115e59; --accent:#0ea5e9; --good:#15803d; --warn:#b45309; --bad:#b91c1c;
+      --good-bg:#dcfce7; --warn-bg:#fef3c7; --bad-bg:#fee2e2; --soft:#ecfeff;
+      --radius:18px;
+      --shadow:0 18px 50px rgba(15, 23, 42, 0.08);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: Inter, Segoe UI, Arial, sans-serif; color:var(--ink);
+      background:linear-gradient(180deg,#edf6ff 0%, #f8fafc 30%, #f4f7fb 100%);
+    }
+    .container{max-width:1680px; margin:0 auto; padding:20px;}
+    .hero{
+      background:linear-gradient(135deg, #0f766e 0%, #155e75 55%, #0ea5e9 100%);
+      color:white; border-radius:28px; padding:28px; box-shadow: var(--shadow); position:relative; overflow:hidden;
+    }
+    .hero:after{
+      content:""; position:absolute; right:-60px; top:-60px; width:220px; height:220px; border-radius:50%;
+      background:rgba(255,255,255,0.08);
+    }
+    .hero h1{margin:0 0 10px; font-size:34px; letter-spacing:-0.02em}
+    .hero p{margin:0; max-width:980px; color:rgba(255,255,255,0.88); line-height:1.55}
+    .hero-badges{display:flex; flex-wrap:wrap; gap:10px; margin-top:18px}
+    .badge{
+      padding:8px 12px; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.18);
+      border-radius:999px; font-size:13px;
+    }
+
+    .layout{display:flex; flex-direction:column; gap:18px; margin-top:18px;}
+    .panel{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);}
+    .sidebar{padding:20px; position:static; display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:16px; align-items:start;}
+    .sidebar > h2,.sidebar > .btn-row,.sidebar > .status,.sidebar > .note{grid-column:1/-1; margin:0;}
+    .content{display:flex; flex-direction:column; gap:18px}
+    .section{padding:18px}
+    .section h2{margin:0 0 14px; font-size:20px}
+    .muted{color:var(--muted)}
+    .upload-card{
+      grid-column:span 4; border:1px dashed #94a3b8; border-radius:16px; padding:16px; margin:0; background:#f8fafc; min-height:132px;
+    }
+    .upload-card h3{margin:0 0 6px; font-size:15px}
+    .upload-card p{margin:0 0 10px; font-size:12px; color:var(--muted)}
+    .upload-card input{width:100%; font-size:12px}
+    .btn-row{display:flex; flex-wrap:wrap; gap:10px; margin-top:0}
+    button{
+      border:0; border-radius:12px; padding:11px 16px; font-weight:600; cursor:pointer;
+      background:var(--brand); color:white; transition:.18s ease;
+    }
+    button:hover{background:var(--brand-dark)}
+    button.secondary{background:#e2e8f0; color:#0f172a}
+    button.secondary:hover{background:#cbd5e1}
+    button.ghost{background:#eff6ff; color:#075985}
+    button.ghost:hover{background:#dbeafe}
+    button:disabled{opacity:.55; cursor:not-allowed}
+    .status{
+      margin-top:12px; padding:12px 14px; border-radius:14px; background:#f8fafc; border:1px solid var(--line); font-size:14px;
+    }
+    .status strong{color:#0f766e}
+    .kpi-grid{
+      display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; align-items:stretch;
+    }
+    .kpi{
+      padding:18px; border-radius:18px; border:1px solid var(--line); background:linear-gradient(180deg,#fff,#f8fbff);
+      min-height:148px; display:grid; grid-template-rows:auto auto auto; align-content:start; gap:12px;
+    }
+    .kpi .label{color:var(--muted); font-size:14px; line-height:1.45; min-height:auto}
+    .kpi .value{font-size:42px; line-height:1; font-weight:800; margin-top:2px; letter-spacing:-0.03em}
+    .kpi .tone{display:inline-flex; margin-top:2px; align-self:flex-start; font-size:12px; padding:6px 10px; border-radius:999px; background:var(--soft); color:#0c4a6e}
+    .summary-grid{
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; align-items:start;
+    }
+    .summary-card{
+      padding:18px; border:1px solid var(--line); border-radius:18px; background:#fff;
+    }
+    .summary-card h3{margin:0 0 10px; font-size:16px}
+    .mini-table{width:100%; border-collapse:collapse; font-size:13px}
+    .mini-table th,.mini-table td{padding:8px 0; border-bottom:1px solid #edf2f7; text-align:left}
+    .toolbar{
+      display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;
+    }
+    .toolbar .tabs{display:flex; gap:8px; flex-wrap:wrap}
+    .tab{
+      border:1px solid var(--line); background:#fff; color:var(--ink); padding:9px 12px; border-radius:999px;
+    }
+    .tab.active{background:var(--brand); color:#fff; border-color:var(--brand)}
+    .export-bar{display:flex; flex-wrap:wrap; gap:10px}
+    .table-shell{
+      overflow:auto; border:1px solid var(--line); border-radius:16px; max-height:620px;
+    }
+    table.data{width:100%; border-collapse:separate; border-spacing:0; min-width:980px; font-size:13px;}
+    table.data thead th{
+      position:sticky; top:0; z-index:2; background:#f1f5f9; padding:12px; text-align:left; border-bottom:1px solid var(--line);
+      white-space:nowrap;
+    }
+    table.data td{padding:10px 12px; border-bottom:1px solid #edf2f7; white-space:nowrap; vertical-align:top}
+    table.data tbody tr:hover{background:#fafcff}
+    .pill{
+      display:inline-flex; padding:5px 10px; border-radius:999px; font-size:12px; font-weight:700;
+      border:1px solid transparent;
+    }
+    .good{background:var(--good-bg); color:var(--good)}
+    .warn{background:var(--warn-bg); color:var(--warn)}
+    .bad{background:var(--bad-bg); color:var(--bad)}
+    .neutral{background:#eef2ff; color:#3730a3}
+    .empty-state{
+      padding:36px; border:1px dashed var(--line); border-radius:16px; text-align:center; color:var(--muted); background:#fff;
+    }
+    .note{
+      margin-top:12px; padding:12px 14px; border-radius:14px; background:#f8fafc; border:1px solid var(--line); font-size:13px; color:#334155;
+    }
+    .search-box{
+      min-width:280px; flex:1; max-width:340px;
+      border:1px solid var(--line); border-radius:12px; padding:11px 12px; background:white;
+    }
+    @media (max-width:1300px){
+      .sidebar{grid-template-columns:repeat(6,minmax(0,1fr))}
+      .upload-card{grid-column:span 2}
+      .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media (max-width:920px){
+      .container{padding:16px}
+      .hero{padding:22px}
+      .hero h1{font-size:30px}
+      .sidebar{grid-template-columns:1fr}
+      .upload-card{grid-column:1/-1; min-height:auto}
+      .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .summary-grid{grid-template-columns:1fr}
+      .toolbar{align-items:flex-start}
+    }
+    @media (max-width:640px){
+      .container{padding:12px}
+      .hero{padding:18px}
+      .hero h1{font-size:26px}
+      .kpi-grid{grid-template-columns:1fr}
+      .kpi{min-height:auto}
+    }
+  
+    .auth-shell{
+      min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .auth-card{
+      width:100%; max-width:440px; background:rgba(255,255,255,0.96); border:1px solid var(--line); border-radius:28px;
+      box-shadow:var(--shadow); overflow:hidden;
+    }
+    .auth-head{
+      padding:26px 26px 18px; background:linear-gradient(135deg, #0f766e 0%, #155e75 55%, #0ea5e9 100%); color:#fff;
+    }
+    .auth-head h1{margin:0 0 8px; font-size:28px; letter-spacing:-0.02em}
+    .auth-head p{margin:0; color:rgba(255,255,255,0.9); line-height:1.5; font-size:14px}
+    .auth-body{padding:22px 26px 26px}
+    .auth-note{
+      margin:0 0 18px; padding:12px 14px; border-radius:14px; background:#f8fafc; border:1px solid var(--line); color:#334155; font-size:13px; line-height:1.5;
+    }
+    .auth-form{display:grid; gap:14px}
+    .field label{display:block; margin:0 0 7px; font-size:13px; color:#334155; font-weight:600}
+    .field input{
+      width:100%; border:1px solid var(--line); border-radius:14px; padding:13px 14px; font-size:14px; outline:none; background:#fff;
+    }
+    .field input:focus{border-color:#0ea5e9; box-shadow:0 0 0 4px rgba(14,165,233,.12)}
+    .auth-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .auth-error{display:none; margin-top:12px; padding:11px 12px; border-radius:12px; background:var(--bad-bg); color:var(--bad); font-size:13px; border:1px solid rgba(185,28,28,.14)}
+    .app-shell[hidden], .auth-shell[hidden]{display:none !important}
+    .hero-top{display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap}
+    .user-chip{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:16px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18)}
+    .user-chip strong{font-size:13px}
+    .user-chip span{font-size:12px; color:rgba(255,255,255,.82)}
+    .logout-btn{background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.22); color:#fff}
+    .logout-btn:hover{background:rgba(255,255,255,.24)}
+    @media (max-width:640px){
+      .auth-shell{padding:16px}
+      .auth-head{padding:22px 20px 16px}
+      .auth-body{padding:18px 20px 20px}
+      .auth-head h1{font-size:24px}
+    }
+
+  
+
+    /* UI refresh */
+    body{background:linear-gradient(180deg,#eef4fb 0%,#f8fafc 35%,#f5f7fb 100%)}
+    .container{max-width:1460px;padding:24px}
+    .hero{
+      padding:24px 28px;border-radius:24px;
+      background:linear-gradient(135deg,#0f766e 0%, #0f5f76 50%, #0ea5e9 100%);
+      box-shadow:0 20px 50px rgba(15,23,42,.12);
+    }
+    .hero-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:start}
+    .hero h1{font-size:42px;line-height:1.05;margin:0 0 12px}
+    .hero p{max-width:920px;font-size:16px;color:rgba(255,255,255,.9)}
+    .nav-row{
+      display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;
+      padding:6px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);
+      border-radius:16px;margin-bottom:18px;backdrop-filter: blur(8px);
+    }
+    .nav-link{
+      display:inline-flex;align-items:center;justify-content:center;
+      text-decoration:none;color:rgba(255,255,255,.88);font-size:14px;font-weight:700;
+      padding:10px 14px;border-radius:12px;transition:.18s ease;
+    }
+    a.nav-link:hover{background:rgba(255,255,255,.12);color:#fff}
+    .nav-row span.nav-link,.nav-link.active{background:#fff !important;color:#0f172a !important;box-shadow:0 8px 20px rgba(2,6,23,.14)}
+    .user-chip{
+      min-width:190px;justify-content:space-between;padding:14px 16px;border-radius:18px;
+      background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);backdrop-filter: blur(10px);
+      box-shadow:0 12px 26px rgba(15,23,42,.12)
+    }
+    .user-chip strong{font-size:22px;line-height:1}
+    .user-chip span{font-size:12px;letter-spacing:.02em;text-transform:uppercase}
+    .logout-btn{padding:11px 16px;border-radius:14px;font-weight:800}
+    .hero-badges{margin-top:20px;gap:12px}
+    .badge{padding:10px 14px;background:rgba(255,255,255,.14);font-weight:600;font-size:13px}
+    .layout{gap:22px;margin-top:22px}
+    .panel{border:none;box-shadow:0 14px 34px rgba(15,23,42,.06)}
+    .sidebar{padding:24px;background:#fff}
+    .sidebar>h2{font-size:28px;margin-bottom:4px}
+    .upload-card{
+      background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);border:1px solid #d6e2ee;border-style:solid;
+      border-radius:18px;min-height:160px;padding:18px;box-shadow:0 10px 24px rgba(15,23,42,.04)
+    }
+    .upload-card h3{font-size:18px;margin-bottom:8px}
+    .upload-card p{font-size:13px;line-height:1.55;margin-bottom:14px}
+    .upload-card input{font-size:13px}
+    button{padding:12px 18px;border-radius:14px;box-shadow:0 8px 16px rgba(15,118,110,.18)}
+    .secondary,.ghost{box-shadow:none}
+    .status,.note{padding:14px 16px;border-radius:16px;background:#f8fbff}
+    .section{padding:22px}
+    .section h2{font-size:28px;margin-bottom:16px}
+    .kpi-grid{gap:18px}
+    .kpi{
+      min-height:136px;padding:20px;border:none;border-radius:20px;
+      background:linear-gradient(180deg,#ffffff 0%,#f9fbff 100%);
+      box-shadow:0 12px 28px rgba(15,23,42,.06)
+    }
+    .kpi .label{font-size:15px;line-height:1.4;color:#516175}
+    .kpi .value{font-size:44px}
+    .kpi .tone{padding:7px 11px;font-weight:700}
+    .summary-card{border:none;box-shadow:0 12px 28px rgba(15,23,42,.05);padding:20px}
+    .toolbar{margin-bottom:16px;gap:14px}
+    .tab{padding:10px 14px;font-weight:700;border-radius:14px}
+    .tab.active{box-shadow:0 10px 20px rgba(15,118,110,.18)}
+    .search-box{border-radius:14px;padding:12px 14px}
+    .table-shell{border:none;box-shadow:0 12px 26px rgba(15,23,42,.05)}
+    table.data thead th{background:#f8fafc;font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:#475569}
+    table.data td{font-size:13px}
+    .empty-state{padding:48px;border-radius:20px}
+    @media (max-width: 1100px){
+      .hero-top{grid-template-columns:1fr}
+      .user-chip{min-width:0;width:100%;max-width:260px}
+    }
+    @media (max-width: 920px){
+      .container{padding:16px}
+      .hero{padding:20px}
+      .hero h1{font-size:34px}
+      .sidebar>h2,.section h2{font-size:24px}
+      .upload-card{min-height:auto}
+    }
+    @media (max-width: 640px){
+      .hero h1{font-size:28px}
+      .nav-row{width:100%}
+      .nav-link{flex:1}
+      .hero-badges{gap:8px}
+      .badge{font-size:12px;padding:8px 12px}
+      .user-chip{max-width:none}
+      .kpi .value{font-size:38px}
+    }
+
+  
+    .brand-mark{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+    .brand-mark img{height:56px;width:auto;display:block;background:#fff;border-radius:10px;padding:4px;box-shadow:0 8px 20px rgba(2,6,23,.10)}
+    .brand-mark .brand-text{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.88)}
+    .auth-brand{display:flex;justify-content:center;margin-bottom:16px}
+    .auth-brand img{height:58px;width:auto;display:block;background:#fff;border-radius:12px;padding:5px;box-shadow:0 10px 24px rgba(2,6,23,.10)}
+    .insight-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px}
+    .insight-card{grid-column:span 4;background:linear-gradient(180deg,#fff 0%,#f8fbff 100%);border-radius:20px;padding:18px;border:1px solid #e2e8f0;box-shadow:0 10px 24px rgba(15,23,42,.05)}
+    .insight-card.wide{grid-column:span 6}
+    .insight-card h3{margin:0 0 4px;font-size:18px}
+    .insight-card p{margin:0 0 14px;color:#64748b;font-size:13px;line-height:1.5}
+    .chart-wrap{position:relative;height:280px}
+    .insight-bullets{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:8px}
+    .insight-point{padding:14px;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0}
+    .insight-point strong{display:block;font-size:13px;color:#475569;margin-bottom:6px}
+    .insight-point span{font-size:22px;font-weight:800;letter-spacing:-.02em}
+    @media (max-width:1200px){.insight-card{grid-column:span 6} .insight-card.wide{grid-column:span 12}}
+    @media (max-width:760px){.insight-grid{grid-template-columns:1fr} .insight-card,.insight-card.wide{grid-column:span 1} .chart-wrap{height:240px} .brand-mark{flex-direction:column;align-items:flex-start}}
+
+  
+
+/* Leadership polish */
+:root{ --exec-side:#071b2d; --exec-side-2:#10293f; --exec-side-line:rgba(255,255,255,.08); --exec-text:#d8e7f5; }
+.nav-row{display:none !important}
+.app-shell{position:relative}
+.exec-sidebar{
+  position:fixed; inset:0 auto 0 0; width:272px; z-index:60;
+  background:linear-gradient(180deg,var(--exec-side) 0%, var(--exec-side-2) 100%);
+  color:var(--exec-text); padding:22px 18px; display:flex; flex-direction:column; gap:18px;
+  box-shadow:24px 0 56px rgba(2,6,23,.22);
+}
+.exec-brand{display:flex; align-items:center; gap:12px; padding:10px 8px 16px; border-bottom:1px solid var(--exec-side-line)}
+.exec-brand img{height:38px; width:auto; background:#fff; border-radius:10px; padding:4px; box-shadow:0 10px 24px rgba(0,0,0,.22)}
+.exec-brand small{display:block; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#9db7cf; margin-bottom:4px}
+.exec-brand strong{display:block; font-size:19px; color:#fff; line-height:1.15}
+.exec-side-caption{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#8facbf; margin:2px 0 8px}
+.exec-side-nav{display:grid; gap:8px}
+.exec-side-link{display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px; color:var(--exec-text); text-decoration:none; font-weight:700; border:1px solid transparent; transition:.18s ease}
+.exec-side-link:hover{background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.07)}
+.exec-side-link.active{background:rgba(255,255,255,.10); color:#fff; border-color:rgba(255,255,255,.12); box-shadow:0 10px 20px rgba(0,0,0,.16)}
+.exec-side-icon{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:12px; background:rgba(255,255,255,.08); color:#fff; font-size:16px; font-weight:800; flex:0 0 34px}
+.exec-side-card{background:rgba(255,255,255,.04); border:1px solid var(--exec-side-line); border-radius:18px; padding:14px}
+.exec-side-card p{margin:0; color:#c2d5e5; font-size:13px; line-height:1.55}
+.exec-quick-actions{display:grid; gap:10px}
+.exec-quick-actions button{width:100%; justify-content:center; box-shadow:none; border:1px solid rgba(255,255,255,.08)}
+.exec-quick-actions .secondary{background:rgba(255,255,255,.10); color:#fff}
+.exec-quick-actions .secondary:hover{background:rgba(255,255,255,.16)}
+.exec-badge-list{display:grid; gap:10px; margin-top:auto}
+.exec-badge{padding:12px 14px; border-radius:16px; background:rgba(255,255,255,.04); border:1px solid var(--exec-side-line); color:#dce9f5; font-size:12px; line-height:1.5}
+.exec-badge strong{display:block; color:#fff; margin-bottom:4px; font-size:13px}
+.container{max-width:none !important; width:calc(100% - 304px); margin-left:288px; padding:26px 24px 26px 0}
+.hero{position:relative; overflow:hidden; border:1px solid rgba(255,255,255,.12)}
+.hero:before{content:""; position:absolute; right:-60px; top:-80px; width:220px; height:220px; border-radius:50%; background:rgba(255,255,255,.08)}
+.hero h1{max-width:780px}
+.user-chip{align-self:stretch}
+.sidebar{border-left:4px solid rgba(14,165,233,.12)}
+.section h2{display:flex; align-items:center; gap:10px}
+.section h2:before{content:""; width:10px; height:10px; border-radius:999px; background:linear-gradient(180deg,#0ea5e9,#0f766e); box-shadow:0 0 0 6px rgba(14,165,233,.12)}
+.kpi{position:relative; overflow:hidden}
+.kpi:after{content:""; position:absolute; inset:0 auto 0 0; width:5px; background:linear-gradient(180deg,#0f766e,#0ea5e9)}
+.summary-card h3, .insight-card h3{display:flex; align-items:center; gap:8px}
+.summary-card h3:before, .insight-card h3:before{content:""; width:8px; height:8px; border-radius:999px; background:#0ea5e9; box-shadow:0 0 0 5px rgba(14,165,233,.10)}
+.export-bar{gap:12px}
+.export-bar button{box-shadow:none}
+.hero-badges .badge{backdrop-filter:blur(6px)}
+.status strong{color:#0f766e}
+@media (max-width: 1100px){
+  .exec-sidebar{position:sticky; inset:0; width:auto; height:auto; flex-direction:column; padding:16px; border-radius:0 0 24px 24px}
+  .container{width:100% !important; margin-left:0; padding:16px}
+  .exec-badge-list{margin-top:0}
+}
+@media (max-width: 760px){
+  .exec-side-nav{grid-template-columns:1fr}
+  .exec-brand{padding-bottom:12px}
+  .exec-badge-list{display:none}
+  .exec-side-card{display:none}
+  .exec-sidebar{gap:14px}
+}
+
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="auth-shell">
+    <div class="auth-card">
+      <div class="auth-head">
+        <div class="auth-brand"><img src="data:image/png;base64,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" alt="uNext logo" /></div>
+        <h1>Data Recon Access</h1>
+        <p>Sign in to open the dashboard, reconciliation tables, and export actions.</p>
+      </div>
+      <div class="auth-body">
+        <div id="loginNote" class="auth-note">
+          Enter your login credentials to access the dashboard. Your session stays active on refresh and ends only after logout in this tab.
+        </div>
+        <form id="loginForm" class="auth-form">
+          <div class="field">
+            <label for="usernameInput">Username</label>
+            <input id="usernameInput" type="text" autocomplete="username" placeholder="Enter username" required />
+          </div>
+          <div class="field">
+            <label for="passwordInput">Password</label>
+            <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Enter password" required />
+          </div>
+          <div class="auth-actions">
+            <button type="submit">Login</button>
+          </div>
+          <div class="auth-error" id="authError"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="appShell" class="app-shell" hidden>
+    <aside class="exec-sidebar">
+      <div class="exec-brand">
+        <img src="data:image/png;base64,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" alt="uNext logo" />
+        <div>
+          <small>Leadership View</small>
+          <strong>Student Data Recon</strong>
+        </div>
+      </div>
+      <div>
+        <div class="exec-side-caption">Navigation</div>
+        <nav class="exec-side-nav"><a class="exec-side-link" href="index.html"><span class="exec-side-icon">⌂</span><span>Home</span></a><a class="exec-side-link active" href="data-recon.html"><span class="exec-side-icon">▣</span><span>Student Data Recon</span></a><a class="exec-side-link" href="payment-recon.html"><span class="exec-side-icon">₹</span><span>Payment Recon</span></a></nav>
+      </div>
+      <div class="exec-side-card">
+        <div class="exec-side-caption">Quick Actions</div>
+        <div class="exec-quick-actions">
+          <button type="button" id="sidePdfBtn">Download PDF</button>
+          <button type="button" class="secondary" id="sideGenerateBtn">Generate Dashboard</button>
+          <button type="button" class="secondary" id="sideResetBtn">Reset Inputs</button>
+        </div>
+      </div>
+      <div class="exec-badge-list">
+        <div class="exec-badge"><strong>Leadership ready</strong>Polished UI, richer dashboards, and branded navigation for executive demos.</div>
+        <div class="exec-badge"><strong>Export ready</strong>Workbook, CSV, JSON, and PDF actions remain available from the workspace.</div>
+        <div class="exec-badge"><strong>Secure session</strong>Access remains session-based within the browser and returns to Home on logout.</div>
+      </div>
+    </aside>
+
+  <div class="container">
+    <section class="hero">
+      <div class="hero-top">
+        <div>
+          <div class="brand-mark"><img src="data:image/png;base64,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" alt="uNext logo" /><span class="brand-text">uNext</span></div>
+          <div class="nav-row">
+            <a class="nav-link" href="index.html">Home</a>
+            <span class="nav-link active">Student Data Recon</span>
+            <a class="nav-link" href="payment-recon.html">Payment Recon</a>
+          </div>
+          <h1>Data Recon</h1>
+          <p>Upload LSQ, SF, and DEB files to generate a reconciliation dashboard, detailed output view, DEB-base mismatch analysis, and export-ready files. This version uses <strong>LSQ application number as the base</strong>, takes <strong>program and enrollment status from SF</strong>, and calculates <strong>DEB not matching with DEB as the base</strong>.</p>
+          <div class="hero-badges">
+            <span class="badge">Active SF KPI included</span>
+            <span class="badge">Refund initiated KPI included</span>
+            <span class="badge">Leading 0 removed before ABC / DEB ID compare</span>
+            <span class="badge">Workbook + CSV + JSON exports</span>
+          </div>
+        </div>
+        <div class="user-chip">
+          <div>
+            <strong id="activeUserLabel">admin</strong><br>
+            <span>Signed in</span>
+          </div>
+          <button id="logoutBtn" class="logout-btn" type="button">Logout</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="layout">
+      <aside class="panel sidebar">
+        <h2 style="margin-top:0">Input Files</h2>
+        <div class="upload-card">
+          <h3>LSQ file</h3>
+          <p>Base file. CSV or Excel. Needs MUJ Application Number, Admission Status, Nationality, course, ABC / DEB IDs, refund fields.</p>
+          <input id="lsqFile" type="file" accept=".csv,.xlsx,.xls" />
+        </div>
+        <div class="upload-card">
+          <h3>SF file</h3>
+          <p>Used for application match, program, SF ABC / DEB IDs, and enrollment status. CSV or Excel.</p>
+          <input id="sfFile" type="file" accept=".csv,.xlsx,.xls" />
+        </div>
+        <div class="upload-card">
+          <h3>DEB file</h3>
+          <p>Used as the base for DEB not matching. Reads enrollment number and DEB course. CSV or Excel.</p>
+          <input id="debFile" type="file" accept=".csv,.xlsx,.xls" />
+        </div>
+        <div class="btn-row">
+          <button id="generateBtn">Generate dashboard</button>
+          <button class="secondary" id="resetBtn">Reset</button>
+        </div>
+        <div class="status" id="statusBox">Upload LSQ, SF, and DEB files in CSV or Excel format, then click <strong>Generate dashboard</strong>.</div>
+        <div class="note">
+          <strong>Logic in this build</strong><br>
+          1. Output base = LSQ application number<br>
+          2. Program + enrollment status = SF<br>
+          3. DEB not matching = DEB base<br>
+          4. ABC / DEB ID compare removes a leading 0 before matching
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="panel section">
+          <h2>Dashboard</h2>
+          <div id="kpis" class="kpi-grid">
+            <div class="empty-state" style="grid-column:1/-1">No dashboard yet. Generate after uploading the files.</div>
+          </div>
+        </section>
+
+
+        <section class="panel section">
+          <div class="toolbar">
+            <h2 style="margin:0">Insights & Graphs</h2>
+          </div>
+          <div id="insightsArea" class="insight-grid">
+            <div class="empty-state" style="grid-column:1/-1">Generate the dashboard to view charts and insights.</div>
+          </div>
+        </section>
+
+        <section class="panel section">
+          <div class="toolbar">
+            <h2 style="margin:0">File Summary</h2>
+            <div class="export-bar">
+              <button class="ghost" id="exportPdfBtn">Export dashboard PDF</button>
+              <button class="ghost" id="exportWorkbookBtn" disabled>Export workbook</button>
+              <button class="ghost" id="exportSummaryBtn" disabled>Export summary JSON</button>
+              <button class="ghost" id="exportMujBtn" disabled>Export Output CSV</button>
+              <button class="ghost" id="exportDebMapBtn" disabled>Export DEB mapping CSV</button>
+              <button class="ghost" id="exportDebNotBtn" disabled>Export DEB not matching CSV</button>
+              <button class="ghost" id="exportRemainingBtn" disabled>Export remaining LSQ CSV</button>
+            </div>
+          </div>
+          <div id="summaries" class="summary-grid">
+            <div class="empty-state" style="grid-column:1/-1">Summary panels will appear here.</div>
+          </div>
+        </section>
+
+        <section class="panel section">
+          <div class="toolbar">
+            <div class="tabs" id="tabs"></div>
+            <input id="tableSearch" class="search-box" placeholder="Search current table…" />
+          </div>
+          <div id="tableArea">
+            <div class="empty-state">Detailed tables will appear after generation.</div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+
+    const AUTH_CONFIG = Object.freeze({
+      username: 'admin',
+      password: 'Recon@123'
+    });
+    const AUTH_SESSION_KEY = 'data_recon_auth_session';
+
+    let isLoggedIn = false;
+
+    function isAuthenticated(){
+      return isLoggedIn;
+    }
+
+    function showApp(){
+      document.getElementById('loginScreen').hidden = true;
+      document.getElementById('appShell').hidden = false;
+      document.getElementById('activeUserLabel').textContent = AUTH_CONFIG.username;
+      document.getElementById('authError').style.display = 'none';
+      document.getElementById('authError').textContent = '';
+      document.getElementById('passwordInput').value = '';
+    }
+
+    function showLogin(){
+      document.getElementById('loginScreen').hidden = false;
+      document.getElementById('appShell').hidden = true;
+      const authErr = document.getElementById('authError');
+      authErr.style.display = 'none';
+      authErr.textContent = '';
+      document.getElementById('usernameInput').value = '';
+      document.getElementById('passwordInput').value = '';
+    }
+
+    function setAuthError(message){
+      const err = document.getElementById('authError');
+      err.textContent = message;
+      err.style.display = 'block';
+    }
+
+    const state = {
+      result: null,
+      currentTab: 'Recon Output',
+      currentFilter: ''
+    };
+
+    const programMap = {
+      'bcom':'B.Com',
+      'b.com':'B.Com',
+      'bba':'BBA',
+      'bca':'BCA',
+      'm.com':'M.Com',
+      'mcom':'M.Com',
+      'ma in economics':'MA in Economics',
+      'ma.jmc':'MA.JMC',
+      'mba':'MBA',
+      'mca':'MCA',
+      'msc in mathematics':'MSc in Mathematics',
+      'bachelor of commerce (general)':'B.Com',
+      'bachelor of business administration':'BBA',
+      'bachelor of computer applications':'BCA',
+      'master of commerce (general)':'M.Com',
+      'master of arts (economics)':'MA in Economics',
+      'master of arts (journalism & mass communication)':'MA.JMC',
+      'master of business administration':'MBA',
+      'master of computer applications':'MCA',
+      'master of science (mathematics)':'MSc in Mathematics'
+    };
+
+    function clean(value){
+      return value == null ? '' : String(value).trim();
+    }
+    function normalizeProgram(value){
+      const s = clean(value).replace(/\s+/g,' ');
+      return programMap[s.toLowerCase()] || s;
+    }
+    function normalizeId(value){
+      let s = clean(value).replace(/\s+/g,'').replace(/\.0$/,'');
+      if (s.startsWith('0')) s = s.slice(1);
+      return s;
+    }
+    function firstNonEmpty(rows, key){
+      for (const row of rows){
+        const v = clean(row[key]);
+        if (v && v.toLowerCase() !== 'nan') return v;
+      }
+      return '';
+    }
+    function uniqueAggregate(rows, key){
+      const map = new Map();
+      rows.forEach(row => {
+        const id = clean(row[key]);
+        if (!id) return;
+        if (!map.has(id)) map.set(id, []);
+        map.get(id).push(row);
+      });
+      return [...map.entries()].map(([id, bucket]) => {
+        const out = {[key]: id};
+        const keys = new Set();
+        bucket.forEach(r => Object.keys(r).forEach(k => keys.add(k)));
+        keys.forEach(k => {
+          if (k !== key) out[k] = firstNonEmpty(bucket, k);
+        });
+        return out;
+      });
+    }
+    function countBy(rows, key){
+      const out = {};
+      rows.forEach(r => {
+        const k = clean(r[key]) || '(blank)';
+        out[k] = (out[k] || 0) + 1;
+      });
+      return out;
+    }
+    function parseCSV(file){
+      return new Promise((resolve, reject) => {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: false,
+          complete: results => resolve(results.data || []),
+          error: reject
+        });
+      });
+    }
+    function parseExcel(file){
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          try{
+            const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            resolve(XLSX.utils.sheet_to_json(ws, {defval:''}));
+          }catch(err){ reject(err); }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function pickParser(file){
+      const name = clean(file?.name).toLowerCase();
+      if (name.endsWith('.xlsx') || name.endsWith('.xls')) return parseExcel;
+      return parseCSV;
+    }
+    function missingColumns(rows, required){
+      const cols = new Set((rows[0] ? Object.keys(rows[0]) : []).map(clean));
+      return required.filter(c => !cols.has(c));
+    }
+    function toneForMetric(label){
+      if (/not matching|not in/i.test(label)) return 'bad';
+      if (/withdrawal|refund/i.test(label)) return 'warn';
+      return 'neutral';
+    }
+    function pillClass(value){
+      const v = clean(value).toLowerCase();
+      if (v.includes('active') || v.includes('match')) return 'pill good';
+      if (v.includes('withdraw') || v.includes('withheld') || v.includes('provisional')) return 'pill warn';
+      if (v.includes('not') || v.includes('mismatch')) return 'pill bad';
+      return 'pill neutral';
+    }
+
+    function createMuj(lsqRows, sfRows, debRows){
+      const lsq = uniqueAggregate(lsqRows, 'MUJ Application Number').map(r => ({
+        ...r,
+        LSQ_Program_Norm: normalizeProgram(r['MUJ Course'])
+      }));
+      const sf = uniqueAggregate(sfRows, 'Application_Number__c').map(r => ({
+        ...r,
+        SF_Program_Norm: normalizeProgram(r['Academic_Program__c'])
+      }));
+      const deb = debRows.map(r => ({
+        ...r,
+        EnrollmentNumber: clean(r['EnrollmentNumber']),
+        DEB_Program_Norm: normalizeProgram(r['Course Name'])
+      })).filter(r => r.EnrollmentNumber);
+
+      const sfMap = new Map(sf.map(r => [clean(r['Application_Number__c']), r]));
+      const debMap = new Map(deb.map(r => [clean(r['EnrollmentNumber']), r]));
+
+      const muj = lsq.map(r => {
+        const app = clean(r['MUJ Application Number']);
+        const sfRow = sfMap.get(app) || {};
+        const debRow = debMap.get(app) || {};
+        const sfPresent = !!clean(sfRow['Application_Number__c']);
+        const debPresent = !!clean(debRow['EnrollmentNumber']);
+        const programMatch = r.LSQ_Program_Norm && sfRow.SF_Program_Norm ? (r.LSQ_Program_Norm === sfRow.SF_Program_Norm ? 'Yes' : 'No') : '';
+        const sfDebProgramMatch = sfRow.SF_Program_Norm && debRow.DEB_Program_Norm ? (sfRow.SF_Program_Norm === debRow.DEB_Program_Norm ? 'Yes' : 'No') : '';
+        const status = clean(sfRow['Enrollment_Status__c']).toLowerCase();
+        const abcLsqNorm = normalizeId(r['Refund Fields - ABC ID']);
+        const abcSfNorm = normalizeId(sfRow['ABC_ID__c']);
+        const debLsqNorm = normalizeId(r['Refund Fields - DEB ID']);
+        const debSfNorm = normalizeId(sfRow['DEB_ID__c']);
+        let match = '';
+        if (!sfPresent) match = 'LSQ not in SF';
+        else if (status === 'active' && programMatch === 'Yes' && debPresent && sfDebProgramMatch === 'Yes') match = 'Active';
+        else if (status === 'active' && programMatch === 'Yes' && !debPresent) match = 'Active not in DEB';
+        else if (status === 'withdrawal' && debPresent && sfDebProgramMatch === 'Yes') match = 'Withdrawal in DEB';
+        else if (status === 'withdrawal' && !debPresent) match = 'Withdrawal not in DEB';
+        else if (status === 'withheld') match = 'Withheld';
+        else if (sfPresent && programMatch === 'No') match = 'Program mismatch';
+
+        const abcMatch = abcLsqNorm && abcSfNorm ? (abcLsqNorm === abcSfNorm ? 'Match' : 'Mismatch') : '';
+        const debIdMatch = debLsqNorm && debSfNorm ? (debLsqNorm === debSfNorm ? 'Match' : 'Mismatch') : '';
+        let comments = '';
+        if (match === 'LSQ not in SF') comments = 'Application present in LSQ but missing in SF.';
+        else if (match === 'Program mismatch') comments = 'Application found in SF but program differs from LSQ.';
+        else if (match === 'Active not in DEB') comments = 'Active in SF but no DEB push found.';
+        else if (match === 'Withdrawal in DEB') comments = 'Withdrawal in SF and record exists in DEB.';
+        else if (match === 'Withdrawal not in DEB') comments = 'Withdrawal in SF but no DEB record found.';
+        else if (match === 'Withheld') comments = 'Record exists in SF with withheld status.';
+        else if (abcMatch === 'Mismatch' || debIdMatch === 'Mismatch') comments = 'ID mismatch after leading-zero normalization.';
+        else if (match === 'Active') comments = 'Active record matched across LSQ, SF, and DEB.';
+
+        return {
+          'Application No': app,
+          'SF Pushed': sfPresent ? 'Available' : 'Not Available',
+          'SF Enrollment status': clean(sfRow['Enrollment_Status__c']),
+          'Name': clean(r['Lead Name']),
+          'Email id': clean(r['Email Address']),
+          'Course': clean(r['MUJ Course']),
+          'SF course': clean(sfRow['Academic_Program__c']),
+          'ProgramMatch': programMatch,
+          'Admission status': clean(r['Admission Status']),
+          'Form type': '',
+          'Nationality': clean(r['Nationality']),
+          'Refund Fields - ABC ID': clean(r['Refund Fields - ABC ID']),
+          'SF ABC': clean(sfRow['ABC_ID__c']),
+          'ABC Match (0-normalized)': abcMatch,
+          'Refund Fields - DEB ID': clean(r['Refund Fields - DEB ID']),
+          'SF DEB': clean(sfRow['DEB_ID__c']),
+          'DEB Match (0-normalized)': debIdMatch,
+          'Refund Fields - DEB timestamp': clean(r['Refund Fields - DEB timestamp']),
+          'SF DEB Timestamp': clean(sfRow['DEB_Time_Stamp__c']),
+          'Refund Initiation Date': clean(r['Refund Fields - Refund Initiation Date']),
+          'Refund Fields - Refund Status': clean(r['Refund Fields - Refund Status']),
+          'Concat': `${app} | ${r.LSQ_Program_Norm || ''}`,
+          'Match': match,
+          'Comments': comments
+        };
+      }).sort((a,b) => clean(b['Application No']).localeCompare(clean(a['Application No'])));
+
+      const debMapping = deb.map(r => {
+        const sfRow = sfMap.get(clean(r['EnrollmentNumber'])) || {};
+        const hasSf = !!clean(sfRow['Application_Number__c']);
+        const programMatch = r.DEB_Program_Norm && sfRow.SF_Program_Norm ? (r.DEB_Program_Norm === sfRow.SF_Program_Norm ? 'Yes' : 'No') : '';
+        const status = clean(sfRow['Enrollment_Status__c']).toLowerCase();
+        let mappingStatus = 'DEB Not Matching';
+        if (status === 'active' && hasSf && programMatch === 'Yes') mappingStatus = 'Matched Active';
+        else if (status === 'withdrawal' && hasSf && programMatch === 'Yes') mappingStatus = 'Withdrawal Cases';
+        else if (status === 'withheld' && hasSf && programMatch === 'Yes') mappingStatus = 'DEB Not Matching';
+        let comments = 'DEB record did not match active or withdrawal criteria.';
+        if (mappingStatus === 'Matched Active') comments = 'DEB record matched to active SF record.';
+        else if (mappingStatus === 'Withdrawal Cases') comments = 'DEB record matched to withdrawal SF record.';
+        else if (!hasSf) comments = 'DEB enrollment number not found in SF.';
+        else if (status === 'withheld') comments = 'DEB record maps to withheld status in SF.';
+        else if (programMatch === 'No') comments = 'DEB course does not match SF program.';
+
+        return {
+          'EnrollmentNumber': clean(r['EnrollmentNumber']),
+          'Student Name': clean(r['Student Name']),
+          'DEB Course Name': clean(r['Course Name']),
+          'DEB Nationality': clean(r['Nationality']),
+          'SF Application Number': clean(sfRow['Application_Number__c']),
+          'SF Program': clean(sfRow['Academic_Program__c']),
+          'SF Enrollment Status': clean(sfRow['Enrollment_Status__c']),
+          'ProgramMatch': programMatch,
+          'Mapping Status': mappingStatus,
+          'DEB Date of Push': clean(r['Date of Push']),
+          'DEB Email': clean(r['email']),
+          'Comments': comments
+        };
+      }).sort((a,b) => clean(b['EnrollmentNumber']).localeCompare(clean(a['EnrollmentNumber'])));
+
+      const activeAdm = muj.filter(r => ['Admission Approved','Provisional Admission'].includes(clean(r['Admission status'])));
+      const indianActive = activeAdm.filter(r => clean(r['Nationality']).toLowerCase() === 'indian');
+      const foreignActive = activeAdm.filter(r => clean(r['Nationality']) && clean(r['Nationality']).toLowerCase() !== 'indian');
+
+      const dashboard = {
+        'Total L3 Approved in LSQ': muj.filter(r => clean(r['Admission status'])).length,
+        'Active L3 Approved in LSQ': activeAdm.length,
+        'Active SF': sf.filter(r => clean(r['Enrollment_Status__c']).toLowerCase() === 'active').length,
+        'Refund initiated': muj.filter(r => {
+          const s = clean(r['Refund Fields - Refund Status']).toLowerCase();
+          return !!s && s !== 'refund cancelled' && s !== 'cancelled';
+        }).length,
+        'Foreign Nationals (Active)': foreignActive.length,
+        'Indian Nationals (Active)': indianActive.length,
+        'ABC ID available': indianActive.filter(r => clean(r['Refund Fields - ABC ID'])).length,
+        'DEB ID available': indianActive.filter(r => clean(r['Refund Fields - DEB ID'])).length,
+        'Pushed to DEB portal': deb.length,
+        'DEB matching': debMapping.filter(r => r['Mapping Status'] === 'Matched Active').length,
+        'DEB not matching': debMapping.filter(r => r['Mapping Status'] === 'DEB Not Matching').length,
+        'Withdrawal cases': debMapping.filter(r => r['Mapping Status'] === 'Withdrawal Cases').length
+      };
+
+      const result = {
+        dashboard,
+        summaries: {
+          lsq: {
+            rows: lsqRows.length,
+            unique_application_numbers: lsq.length,
+            admission_status_breakup: countBy(muj, 'Admission status'),
+            refund_status_breakup: countBy(muj, 'Refund Fields - Refund Status'),
+            course_breakup: countBy(muj, 'Course')
+          },
+          sf: {
+            rows: sfRows.length,
+            unique_application_numbers: sf.length,
+            enrollment_status_breakup: countBy(sf, 'Enrollment_Status__c'),
+            program_breakup: countBy(sf, 'Academic_Program__c')
+          },
+          deb: {
+            rows: deb.length,
+            unique_enrollment_numbers: deb.length,
+            mapping_status_breakup: countBy(debMapping, 'Mapping Status'),
+            course_breakup: countBy(debMapping, 'DEB Course Name')
+          }
+        },
+        tables: {
+          'Recon Output': muj,
+          'DEB Mapping': debMapping,
+          'DEB Not Matching': debMapping.filter(r => r['Mapping Status'] === 'DEB Not Matching'),
+          'Remaining LSQ not in SF': muj.filter(r => r['Match'] === 'LSQ not in SF'),
+          'Program Mismatch': muj.filter(r => r['Match'] === 'Program mismatch'),
+          'ID Mismatch': muj.filter(r => r['ABC Match (0-normalized)'] === 'Mismatch' || r['DEB Match (0-normalized)'] === 'Mismatch')
+        }
+      };
+      return result;
+    }
+
+    function renderKpis(){
+      const box = document.getElementById('kpis');
+      if (!state.result){ box.innerHTML = '<div class="empty-state" style="grid-column:1/-1">No dashboard yet. Generate after uploading the files.</div>'; return; }
+      box.innerHTML = Object.entries(state.result.dashboard).map(([label,value]) => `
+        <div class="kpi">
+          <div class="label">${label}</div>
+          <div class="value">${Number(value).toLocaleString()}</div>
+          <span class="tone ${toneForMetric(label)}">${label.includes('matching') || label.includes('Matching') ? 'Recon metric' : 'Dashboard metric'}</span>
+        </div>
+      `).join('');
+    }
+
+    function topItems(obj, limit=6){
+      return Object.entries(obj || {}).filter(([k]) => k !== '(blank)').sort((a,b) => b[1]-a[1]).slice(0,limit);
+    }
+    function renderSummaries(){
+      const wrap = document.getElementById('summaries');
+      if (!state.result){ wrap.innerHTML = '<div class="empty-state" style="grid-column:1/-1">Summary panels will appear here.</div>'; return; }
+      const sections = [
+        ['LSQ', state.result.summaries.lsq, 'admission_status_breakup'],
+        ['SF', state.result.summaries.sf, 'enrollment_status_breakup'],
+        ['DEB', state.result.summaries.deb, 'mapping_status_breakup']
+      ];
+      wrap.innerHTML = sections.map(([name, data, breakup]) => `
+        <div class="summary-card">
+          <h3>${name} summary</h3>
+          <table class="mini-table">
+            <tr><th>Rows</th><td>${Number(data.rows).toLocaleString()}</td></tr>
+            <tr><th>Unique keys</th><td>${Number(data.unique_application_numbers || data.unique_enrollment_numbers).toLocaleString()}</td></tr>
+          </table>
+          <div style="height:8px"></div>
+          <table class="mini-table">
+            <thead><tr><th>${name === 'DEB' ? 'Mapping status' : 'Top values'}</th><th>Count</th></tr></thead>
+            <tbody>
+              ${topItems(data[breakup]).map(([k,v]) => `<tr><td>${k}</td><td>${Number(v).toLocaleString()}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      `).join('');
+    }
+
+    function renderTabs(){
+      const tabs = Object.keys(state.result?.tables || {});
+      const tabWrap = document.getElementById('tabs');
+      tabWrap.innerHTML = tabs.map(tab => `<button class="tab ${state.currentTab === tab ? 'active' : ''}" data-tab="${tab}">${tab}</button>`).join('');
+      [...tabWrap.querySelectorAll('.tab')].forEach(btn => btn.onclick = () => {
+        state.currentTab = btn.dataset.tab;
+        renderTabs();
+        renderTable();
+      });
+    }
+
+    function renderTable(){
+      const area = document.getElementById('tableArea');
+      if (!state.result){ area.innerHTML = '<div class="empty-state">Detailed tables will appear after generation.</div>'; return; }
+      const rows = state.result.tables[state.currentTab] || [];
+      const filter = clean(state.currentFilter).toLowerCase();
+      const filtered = !filter ? rows : rows.filter(row => Object.values(row).some(v => clean(v).toLowerCase().includes(filter)));
+      if (!rows.length){ area.innerHTML = '<div class="empty-state">No rows found in this view.</div>'; return; }
+      const preview = filtered.slice(0, 500);
+      const cols = Object.keys(rows[0]);
+      area.innerHTML = `
+        <div class="note" style="margin-bottom:12px">
+          Showing <strong>${preview.length.toLocaleString()}</strong> of <strong>${filtered.length.toLocaleString()}</strong> filtered rows in <strong>${state.currentTab}</strong>.
+          ${filtered.length > 500 ? 'Refine the search or use export for the full file.' : ''}
+        </div>
+        <div class="table-shell">
+          <table class="data">
+            <thead>
+              <tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>
+            </thead>
+            <tbody>
+              ${preview.map(row => `<tr>${
+                cols.map(col => {
+                  const val = clean(row[col]);
+                  if (['Match','Mapping Status','ProgramMatch','ABC Match (0-normalized)','DEB Match (0-normalized)','SF Pushed','SF Enrollment status'].includes(col)) {
+                    return `<td><span class="${pillClass(val)}">${val || '-'}</span></td>`;
+                  }
+                  return `<td>${escapeHtml(val) || '-'}</td>`;
+                }).join('')
+              }</tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function escapeHtml(str){
+      return clean(str)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#39;");
+    }
+
+
+    let chartRefs = [];
+    function destroyCharts(){
+      chartRefs.forEach(c => { try { c.destroy(); } catch(e){} });
+      chartRefs = [];
+    }
+    function makeChart(id, type, data, options={}){
+      const el = document.getElementById(id);
+      if (!el || typeof Chart === 'undefined') return;
+      const chart = new Chart(el.getContext('2d'), { type, data, options });
+      chartRefs.push(chart);
+    }
+    function renderInsights(){
+      const area = document.getElementById('insightsArea');
+      destroyCharts();
+      if (!state.result){
+        area.innerHTML = '<div class="empty-state" style="grid-column:1/-1">Generate the dashboard to view charts and insights.</div>';
+        return;
+      }
+      const d = state.result.dashboard || {};
+      const adm = state.result.summaries.lsq.admission_status_breakup || {};
+      const debMap = state.result.summaries.deb.mapping_status_breakup || {};
+      const course = state.result.summaries.lsq.course_breakup || {};
+      area.innerHTML = `
+        <div class="insight-card wide">
+          <h3>Application funnel</h3>
+          <p>Quick view of the approved-to-active funnel and how many active records reached DEB.</p>
+          <div class="chart-wrap"><canvas id="funnelChart"></canvas></div>
+        </div>
+        <div class="insight-card">
+          <h3>Nationality split</h3>
+          <p>Active LSQ records split by Indian and foreign nationals.</p>
+          <div class="chart-wrap"><canvas id="nationalityChart"></canvas></div>
+        </div>
+        <div class="insight-card">
+          <h3>DEB mapping status</h3>
+          <p>Status view based on DEB as the base for mismatch tracking.</p>
+          <div class="chart-wrap"><canvas id="debStatusChart"></canvas></div>
+        </div>
+        <div class="insight-card">
+          <h3>Top LSQ courses</h3>
+          <p>Highest-volume programs from the LSQ base file.</p>
+          <div class="chart-wrap"><canvas id="courseChart"></canvas></div>
+        </div>
+        <div class="insight-card wide">
+          <h3>Key insights</h3>
+          <p>Auto-generated highlights from the current reconciliation.</p>
+          <div class="insight-bullets">
+            <div class="insight-point"><strong>LSQ records missing in SF</strong><span>${Number((state.result.tables['Remaining LSQ not in SF'] || []).length).toLocaleString()}</span></div>
+            <div class="insight-point"><strong>Active DEB match rate</strong><span>${(d['Pushed to DEB portal'] ? ((d['DEB matching'] / d['Pushed to DEB portal']) * 100) : 0).toFixed(1)}%</span></div>
+            <div class="insight-point"><strong>Refund initiated share</strong><span>${(d['Active L3 Approved in LSQ'] ? ((d['Refund initiated'] / d['Active L3 Approved in LSQ']) * 100) : 0).toFixed(1)}%</span></div>
+            <div class="insight-point"><strong>Withdrawal cases</strong><span>${Number(d['Withdrawal cases'] || 0).toLocaleString()}</span></div>
+          </div>
+        </div>`;
+
+      makeChart('funnelChart', 'bar', {
+        labels: ['Total L3 Approved','Active L3 Approved','Active SF','Pushed to DEB','DEB Matching'],
+        datasets: [{
+          label: 'Count',
+          data: [d['Total L3 Approved in LSQ']||0, d['Active L3 Approved in LSQ']||0, d['Active SF']||0, d['Pushed to DEB portal']||0, d['DEB matching']||0],
+          backgroundColor: ['#0f766e','#0891b2','#2563eb','#8b5cf6','#16a34a'], borderRadius: 10
+        }]
+      }, {responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}});
+
+      makeChart('nationalityChart', 'doughnut', {
+        labels: ['Indian Nationals','Foreign Nationals'],
+        datasets: [{ data: [d['Indian Nationals (Active)']||0, d['Foreign Nationals (Active)']||0], backgroundColor:['#2563eb','#f59e0b'], borderWidth:0 }]
+      }, {responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}});
+
+      const debLabels = Object.keys(debMap); const debData = Object.values(debMap);
+      makeChart('debStatusChart', 'pie', { labels: debLabels, datasets:[{ data: debData, backgroundColor:['#16a34a','#ef4444','#f59e0b','#6366f1','#0ea5e9'], borderWidth:0 }] }, {responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}});
+
+      const topCourses = Object.entries(course).sort((a,b)=>b[1]-a[1]).slice(0,6);
+      makeChart('courseChart', 'bar', { labels: topCourses.map(x=>x[0]), datasets:[{ label:'LSQ Records', data: topCourses.map(x=>x[1]), backgroundColor:'#0ea5e9', borderRadius:10 }] }, { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} });
+    }
+
+    function exportCSV(name, rows){
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const csv = XLSX.utils.sheet_to_csv(ws);
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      downloadBlob(blob, name);
+    }
+    function exportJSON(name, payload){
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json;charset=utf-8;'});
+      downloadBlob(blob, name);
+    }
+    function exportWorkbook(){
+      const wb = XLSX.utils.book_new();
+
+      const dashboardSheet = XLSX.utils.aoa_to_sheet([
+        ['Data Recon Dashboard'],
+        ['Base = LSQ application number | SF supplies program and enrollment status | DEB not matching uses DEB as base'],
+        [],
+        ['Metric', 'Count'],
+        ...Object.entries(state.result.dashboard)
+      ]);
+      XLSX.utils.book_append_sheet(wb, dashboardSheet, 'Dashboard');
+
+      Object.entries(state.result.tables).forEach(([name, rows]) => {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, safeSheetName(name));
+      });
+
+      const summaryRows = [
+        {Section:'LSQ', Item:'Rows', Value:state.result.summaries.lsq.rows},
+        {Section:'LSQ', Item:'Unique application numbers', Value:state.result.summaries.lsq.unique_application_numbers},
+        {Section:'SF', Item:'Rows', Value:state.result.summaries.sf.rows},
+        {Section:'SF', Item:'Unique application numbers', Value:state.result.summaries.sf.unique_application_numbers},
+        {Section:'DEB', Item:'Rows', Value:state.result.summaries.deb.rows},
+        {Section:'DEB', Item:'Unique enrollment numbers', Value:state.result.summaries.deb.unique_enrollment_numbers}
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Summary');
+      XLSX.writeFile(wb, 'data_recon_workbook.xlsx');
+    }
+    function safeSheetName(name){
+      return name.replace(/[\\/*?:[\]]/g,'').slice(0,31);
+    }
+    function downloadBlob(blob, name){
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(a.href);
+        a.remove();
+      }, 100);
+    }
+    function setStatus(message, tone='info'){
+      const box = document.getElementById('statusBox');
+      box.innerHTML = message;
+      box.style.borderColor = tone === 'error' ? '#fecaca' : '#dbe2ea';
+      box.style.background = tone === 'error' ? '#fff1f2' : '#f8fafc';
+    }
+    function toggleExportButtons(enabled){
+      ['exportWorkbookBtn','exportSummaryBtn','exportMujBtn','exportDebMapBtn','exportDebNotBtn','exportRemainingBtn'].forEach(id => {
+        document.getElementById(id).disabled = !enabled;
+      });
+    }
+
+    document.getElementById('generateBtn').onclick = async () => {
+      const lsqFile = document.getElementById('lsqFile').files[0];
+      const sfFile = document.getElementById('sfFile').files[0];
+      const debFile = document.getElementById('debFile').files[0];
+      if (!lsqFile || !sfFile || !debFile){
+        setStatus('Upload <strong>LSQ</strong>, <strong>SF</strong>, and <strong>DEB</strong> files first.', 'error');
+        return;
+      }
+      try{
+        setStatus('Reading files and generating reconciliation...');
+        const [lsqRows, sfRows, debRows] = await Promise.all([
+          pickParser(lsqFile)(lsqFile),
+          pickParser(sfFile)(sfFile),
+          pickParser(debFile)(debFile)
+        ]);
+
+        const lsqMissing = missingColumns(lsqRows, ['MUJ Application Number','Admission Status','MUJ Course','Nationality','Refund Fields - ABC ID','Refund Fields - DEB ID','Refund Fields - Refund Status']);
+        const sfMissing = missingColumns(sfRows, ['Application_Number__c','Academic_Program__c','Enrollment_Status__c','ABC_ID__c','DEB_ID__c']);
+        const debMissing = missingColumns(debRows, ['EnrollmentNumber','Course Name']);
+        if (lsqMissing.length || sfMissing.length || debMissing.length){
+          const parts = [];
+          if (lsqMissing.length) parts.push('LSQ missing: ' + lsqMissing.join(', '));
+          if (sfMissing.length) parts.push('SF missing: ' + sfMissing.join(', '));
+          if (debMissing.length) parts.push('DEB missing: ' + debMissing.join(', '));
+          throw new Error(parts.join(' | '));
+        }
+
+        state.result = createMuj(lsqRows, sfRows, debRows);
+        state.currentTab = 'Recon Output';
+        renderKpis();
+        renderInsights();
+        renderSummaries();
+        renderTabs();
+        renderTable();
+        toggleExportButtons(true);
+        setStatus(`Generated successfully. Output rows: <strong>${state.result.tables['Recon Output'].length.toLocaleString()}</strong> | DEB not matching: <strong>${state.result.dashboard['DEB not matching'].toLocaleString()}</strong> | Remaining LSQ not in SF: <strong>${state.result.tables['Remaining LSQ not in SF'].length.toLocaleString()}</strong>`);
+      }catch(err){
+        console.error(err);
+        setStatus(`Could not process the files. ${err.message || err}`, 'error');
+      }
+    };
+
+    document.getElementById('resetBtn').onclick = () => {
+      state.result = null;
+      state.currentTab = 'Recon Output';
+      state.currentFilter = '';
+      document.getElementById('lsqFile').value = '';
+      document.getElementById('sfFile').value = '';
+      document.getElementById('debFile').value = '';
+      document.getElementById('tableSearch').value = '';
+      renderKpis();
+      renderInsights();
+      renderSummaries();
+      document.getElementById('tabs').innerHTML = '';
+      renderTable();
+      toggleExportButtons(false);
+      setStatus('Upload LSQ, SF, and DEB files in CSV or Excel format, then click <strong>Generate dashboard</strong>.');
+    };
+
+    document.getElementById('tableSearch').addEventListener('input', e => {
+      state.currentFilter = e.target.value;
+      renderTable();
+    });
+
+    document.getElementById('exportWorkbookBtn').onclick = () => exportWorkbook();
+    document.getElementById('exportSummaryBtn').onclick = () => exportJSON('data_recon_summary.json', {
+      dashboard: state.result.dashboard,
+      summaries: state.result.summaries,
+      notes: {
+        base_logic: 'LSQ application number is the base for output. SF provides program and enrollment status. DEB not matching uses DEB as the base.',
+        id_normalization: 'ABC and DEB IDs are compared after removing a single leading 0 when present.'
+      }
+    });
+    document.getElementById('exportMujBtn').onclick = () => exportCSV('data_recon_output.csv', state.result.tables['Recon Output']);
+    document.getElementById('exportDebMapBtn').onclick = () => exportCSV('DEB_mapping_export.csv', state.result.tables['DEB Mapping']);
+    document.getElementById('exportDebNotBtn').onclick = () => exportCSV('DEB_not_matching_export.csv', state.result.tables['DEB Not Matching']);
+    document.getElementById('exportRemainingBtn').onclick = () => exportCSV('remaining_LSQ_not_in_SF.csv', state.result.tables['Remaining LSQ not in SF']);
+
+    renderKpis();
+    renderInsights();
+    renderSummaries();
+    renderTable();
+    toggleExportButtons(false);
+
+    function handleLogin(){
+      const username = document.getElementById('usernameInput').value.trim();
+      const password = document.getElementById('passwordInput').value.trim();
+
+      if (username === AUTH_CONFIG.username && password === AUTH_CONFIG.password) {
+        isLoggedIn = true;
+        sessionStorage.setItem(AUTH_SESSION_KEY, '1');
+        showApp();
+        return;
+      }
+
+      setAuthError('Invalid username or password.');
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', e => {
+      e.preventDefault();
+      handleLogin();
+    });
+
+    document.getElementById('passwordInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleLogin();
+      }
+    });
+
+    function handleLogout(){
+      try {
+        isLoggedIn = false;
+        sessionStorage.removeItem(AUTH_SESSION_KEY);
+      } catch (err) {
+        console.error('Logout failed:', err);
+      }
+      window.location.href = 'index.html';
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+
+    
+
+async function exportDashboardPDF(){
+  try {
+    const target = document.querySelector('.container');
+    const jspdfNS = window.jspdf;
+    if (!target || !window.html2canvas || !jspdfNS || !jspdfNS.jsPDF) {
+      alert('PDF export library is not available right now.');
+      return;
+    }
+    const { jsPDF } = jspdfNS;
+    const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#f4f7fb', scrollY: -window.scrollY });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'pt', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 18;
+    const imgWidth = pageWidth - margin * 2;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    let heightLeft = imgHeight;
+    let position = margin;
+    pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
+    heightLeft -= (pageHeight - margin * 2);
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + margin;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= (pageHeight - margin * 2);
+    }
+    pdf.save('data-recon-dashboard.pdf');
+  } catch (err) {
+    console.error('PDF export failed', err);
+    alert('Unable to export PDF. Please try again after the dashboard loads.');
+  }
+}
+
+document.getElementById('exportPdfBtn')?.addEventListener('click', exportDashboardPDF);
+document.getElementById('sidePdfBtn')?.addEventListener('click', exportDashboardPDF);
+document.getElementById('sideGenerateBtn')?.addEventListener('click', () => document.getElementById('generateBtn')?.click());
+document.getElementById('sideResetBtn')?.addEventListener('click', () => document.getElementById('resetBtn')?.click());
+
+    if (sessionStorage.getItem(AUTH_SESSION_KEY) === '1') {
+      isLoggedIn = true;
+      showApp();
+    } else {
+      showLogin();
+    }
+
+  </script>
+  </div>
+</div>
+
+</body>
+</html>
